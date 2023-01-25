@@ -1,5 +1,5 @@
-import user from '../user';
-import flags from '../flags';
+import user = require('../user');
+import flags = require('../flags');
 
 const flagsApi = module.exports;
 
