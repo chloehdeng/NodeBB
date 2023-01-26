@@ -10,11 +10,32 @@ interface dataType {
     datetime: Date
 }
 
+interface flagObjType {
+    state: string,
+    assignee: null,
+    datetimeISO: Date['toISOString'],
+    notes: string,
+    reports: string
+}
+
 interface callerType {
     uid: number
 }
 
-export async function create(caller: callerType, data: dataType): Promise<any> {
+interface historyType {
+    uid: number,
+    fields: string,
+    datetime: Date,
+    datetimeISO: Date['toISOString']
+}
+
+interface noteType {
+    uid: number
+}
+
+type noteHistory = noteType | historyType;
+
+export async function create(caller: callerType, data: dataType): Promise<flagObjType> {
     const required = ['type', 'id', 'reason'];
     if (!required.every(prop => !!data[prop])) {
         throw new Error('[[error:invalid-data]]');
@@ -28,7 +49,7 @@ export async function create(caller: callerType, data: dataType): Promise<any> {
         id: id,
     });
 
-    const flagObj = await flags.create(type, id, caller.uid, reason);
+    const flagObj:flagObjType = await flags.create(type, id, caller.uid, reason) as flagObjType;
     flags.notify(flagObj, caller.uid)
         .then()
         .catch(err => console.log(err));
@@ -36,8 +57,8 @@ export async function create(caller: callerType, data: dataType): Promise<any> {
     return flagObj;
 }
 
-export async function update(caller: callerType, data: dataType): Promise<any> {
-    const allowed:boolean = await user.isPrivileged(caller.uid);
+export async function update(caller: callerType, data: dataType): Promise<historyType> {
+    const allowed:boolean = await user.isPrivileged(caller.uid) as boolean;
     if (!allowed) {
         throw new Error('[[error:no-privileges]]');
     }
@@ -45,20 +66,18 @@ export async function update(caller: callerType, data: dataType): Promise<any> {
     delete data.flagId;
 
     await flags.update(flagId, caller.uid, data);
-    return await flags.getHistory(flagId);
+    return await flags.getHistory(flagId) as historyType;
 }
 
-export async function appendNote(caller: callerType, data: dataType): Promise<any> {
-    const allowed:boolean = await user.isPrivileged(caller.uid);
+export async function appendNote(caller: callerType, data: dataType): Promise<unknown> {
+    const allowed:boolean = await user.isPrivileged(caller.uid) as boolean;
     if (!allowed) {
         throw new Error('[[error:no-privileges]]');
     }
 
     if (data.datetime && data.flagId) {
         try {
-            // The next line calls a function in a module that has not been updated to TS yet
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-            const note = await flags.getNote(data.flagId, data.datetime);
+            const note:noteType = await flags.getNote(data.flagId, data.datetime) as noteHistory;
             if (note.uid !== caller.uid) {
                 throw new Error('[[error:no-privileges]]');
             }
@@ -66,21 +85,21 @@ export async function appendNote(caller: callerType, data: dataType): Promise<an
             // Okay if not does not exist in database
             // The next line calls a function in a module that has not been updated to TS yet
             // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-            if (e.message !== '[[error:invalid-data]]') {
+            if (e.message as string !== '[[error:invalid-data]]') {
                 throw e;
             }
         }
     }
     await flags.appendNote(data.flagId, caller.uid, data.note, data.datetime);
     const [notes, history] = await Promise.all([
-        flags.getNotes(data.flagId),
-        flags.getHistory(data.flagId),
+        flags.getNotes(data.flagId) as noteType,
+        flags.getHistory(data.flagId) as historyType,
     ]);
     return { notes: notes, history: history };
 }
 
-export async function deleteNote(caller: callerType, data: dataType): Promise<any> {
-    const note = await flags.getNote(data.flagId, data.datetime);
+export async function deleteNote(caller: callerType, data: dataType): Promise<unknown> {
+    const note:noteType = await flags.getNote(data.flagId, data.datetime) as noteType;
     if (note.uid !== caller.uid) {
         throw new Error('[[error:no-privileges]]');
     }
@@ -93,8 +112,8 @@ export async function deleteNote(caller: callerType, data: dataType): Promise<an
     });
 
     const [notes, history] = await Promise.all([
-        flags.getNotes(data.flagId),
-        flags.getHistory(data.flagId),
+        flags.getNotes(data.flagId) as noteType,
+        flags.getHistory(data.flagId) as historyType,
     ]);
     return { notes: notes, history: history };
 }
