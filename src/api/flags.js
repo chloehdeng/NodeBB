@@ -9,77 +9,91 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.deleteNote = exports.appendNote = exports.update = exports.create = void 0;
 const user = require("../user");
 const flags = require("../flags");
-const flagsApi = module.exports;
-flagsApi.create = (caller, data) => __awaiter(void 0, void 0, void 0, function* () {
-    const required = ['type', 'id', 'reason'];
-    if (!required.every(prop => !!data[prop])) {
-        throw new Error('[[error:invalid-data]]');
-    }
-    const { type, id, reason } = data;
-    yield flags.validate({
-        uid: caller.uid,
-        type: type,
-        id: id,
+function create(caller, data) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const required = ['type', 'id', 'reason'];
+        if (!required.every(prop => !!data[prop])) {
+            throw new Error('[[error:invalid-data]]');
+        }
+        const { type, id, reason } = data;
+        yield flags.validate({
+            uid: caller.uid,
+            type: type,
+            id: id,
+        });
+        const flagObj = yield flags.create(type, id, caller.uid, reason);
+        flags.notify(flagObj, caller.uid)
+            .then()
+            .catch(err => console.log(err));
+        return flagObj;
     });
-    const flagObj = yield flags.create(type, id, caller.uid, reason);
-    flags.notify(flagObj, caller.uid);
-    return flagObj;
-});
-flagsApi.update = (caller, data) => __awaiter(void 0, void 0, void 0, function* () {
-    const allowed = yield user.isPrivileged(caller.uid);
-    if (!allowed) {
-        throw new Error('[[error:no-privileges]]');
-    }
-    const { flagId } = data;
-    delete data.flagId;
-    yield flags.update(flagId, caller.uid, data);
-    return yield flags.getHistory(flagId);
-});
-flagsApi.appendNote = (caller, data) => __awaiter(void 0, void 0, void 0, function* () {
-    const allowed = yield user.isPrivileged(caller.uid);
-    if (!allowed) {
-        throw new Error('[[error:no-privileges]]');
-    }
-    if (data.datetime && data.flagId) {
-        try {
-            const note = yield flags.getNote(data.flagId, data.datetime);
-            // The next line calls a function in a module that has not been updated to TS yet
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-            if (note.uid !== caller.uid) {
-                throw new Error('[[error:no-privileges]]');
+}
+exports.create = create;
+function update(caller, data) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const allowed = yield user.isPrivileged(caller.uid);
+        if (!allowed) {
+            throw new Error('[[error:no-privileges]]');
+        }
+        const { flagId } = data;
+        delete data.flagId;
+        yield flags.update(flagId, caller.uid, data);
+        return yield flags.getHistory(flagId);
+    });
+}
+exports.update = update;
+function appendNote(caller, data) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const allowed = yield user.isPrivileged(caller.uid);
+        if (!allowed) {
+            throw new Error('[[error:no-privileges]]');
+        }
+        if (data.datetime && data.flagId) {
+            try {
+                // The next line calls a function in a module that has not been updated to TS yet
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+                const note = yield flags.getNote(data.flagId, data.datetime);
+                if (note.uid !== caller.uid) {
+                    throw new Error('[[error:no-privileges]]');
+                }
+            }
+            catch (e) {
+                // Okay if not does not exist in database
+                // The next line calls a function in a module that has not been updated to TS yet
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+                if (e.message !== '[[error:invalid-data]]') {
+                    throw e;
+                }
             }
         }
-        catch (e) {
-            // Okay if not does not exist in database
-            // The next line calls a function in a module that has not been updated to TS yet
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-            if (e.message !== '[[error:invalid-data]]') {
-                throw e;
-            }
-        }
-    }
-    yield flags.appendNote(data.flagId, caller.uid, data.note, data.datetime);
-    const [notes, history] = yield Promise.all([
-        flags.getNotes(data.flagId),
-        flags.getHistory(data.flagId),
-    ]);
-    return { notes: notes, history: history };
-});
-flagsApi.deleteNote = (caller, data) => __awaiter(void 0, void 0, void 0, function* () {
-    const note = yield flags.getNote(data.flagId, data.datetime);
-    if (note.uid !== caller.uid) {
-        throw new Error('[[error:no-privileges]]');
-    }
-    yield flags.deleteNote(data.flagId, data.datetime);
-    yield flags.appendHistory(data.flagId, caller.uid, {
-        notes: '[[flags:note-deleted]]',
-        datetime: Date.now(),
+        yield flags.appendNote(data.flagId, caller.uid, data.note, data.datetime);
+        const [notes, history] = yield Promise.all([
+            flags.getNotes(data.flagId),
+            flags.getHistory(data.flagId),
+        ]);
+        return { notes: notes, history: history };
     });
-    const [notes, history] = yield Promise.all([
-        flags.getNotes(data.flagId),
-        flags.getHistory(data.flagId),
-    ]);
-    return { notes: notes, history: history };
-});
+}
+exports.appendNote = appendNote;
+function deleteNote(caller, data) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const note = yield flags.getNote(data.flagId, data.datetime);
+        if (note.uid !== caller.uid) {
+            throw new Error('[[error:no-privileges]]');
+        }
+        yield flags.deleteNote(data.flagId, data.datetime);
+        yield flags.appendHistory(data.flagId, caller.uid, {
+            notes: '[[flags:note-deleted]]',
+            datetime: Date.now(),
+        });
+        const [notes, history] = yield Promise.all([
+            flags.getNotes(data.flagId),
+            flags.getHistory(data.flagId),
+        ]);
+        return { notes: notes, history: history };
+    });
+}
+exports.deleteNote = deleteNote;
